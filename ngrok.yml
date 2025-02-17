@@ -1,0 +1,10 @@
+version: "2"
+authtoken: "2sifm7lJ4b830hhzgzX9QL7dvdJ_jqaBdJYFvwDcmg6ivLAi"
+
+tunnels:
+  telegram-webhook:
+    addr: 3001
+    proto: http
+  botpress:
+    addr: 3000
+    proto: http
