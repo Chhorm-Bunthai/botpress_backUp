@@ -13,7 +13,11 @@ export class BotpressController {
 
   @Get('messages')
   async getMessages() {
-    return { messages: this.telegramService.getMessages() };
+    const messages = this.telegramService.getMessages();
+    return {
+      messages,
+      count: messages.length,
+    };
   }
 
   @Post('response')
