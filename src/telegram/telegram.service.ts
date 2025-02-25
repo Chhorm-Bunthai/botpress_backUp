@@ -94,12 +94,15 @@ export class TelegramService implements OnApplicationBootstrap {
       options: { label: string; value: string }[];
     },
   ): Promise<void> {
-    const inlineKeyboard = payload.options.map((opt) => [
-      {
-        text: opt.label,
-        callback_data: opt.value,
-      },
-    ]);
+    // Create rows of two buttons each
+    const chunkSize = 2;
+    const keyboard: { text: string }[][] = [];
+
+    for (let i = 0; i < payload.options.length; i += chunkSize) {
+      const chunk = payload.options.slice(i, i + chunkSize);
+      const row = chunk.map((opt) => ({ text: opt.label }));
+      keyboard.push(row);
+    }
 
     await axios.post(
       `${process.env.TELEGRAM_URL}${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -107,7 +110,7 @@ export class TelegramService implements OnApplicationBootstrap {
         chat_id: chatId,
         text: payload.message,
         reply_markup: {
-          inline_keyboard: inlineKeyboard,
+          keyboard,
           resize_keyboard: true,
           one_time_keyboard: true,
         },
