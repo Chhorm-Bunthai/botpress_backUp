@@ -1,17 +1,15 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  OnApplicationBootstrap,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Telegraf } from 'telegraf';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
 @Injectable()
-export class TelegramService implements OnModuleInit {
+export class TelegramService implements OnApplicationBootstrap {
   public bot: Telegraf;
-  private messageQueue: Array<{
-    userId: string;
-    text: string;
-    context: any;
-    timestamp: Date;
-  }> = [];
 
   constructor(private configService: ConfigService) {
     const token = this.configService.get<string>('TELEGRAM_BOT_TOKEN');
@@ -21,7 +19,7 @@ export class TelegramService implements OnModuleInit {
     this.bot = new Telegraf(token);
   }
 
-  async onModuleInit() {
+  async onApplicationBootstrap() {
     await this.setupWebhook();
     const ngrokUrl = this.configService.get<string>('NGROK_URL');
     if (!ngrokUrl) {
@@ -30,17 +28,16 @@ export class TelegramService implements OnModuleInit {
   }
 
   private async setupWebhook() {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    await this.bot.telegram.deleteWebhook();
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const webhookUrl = `${this.configService.get('NGROK_URL')}/telegram-webhook`;
+
+    await this.bot.telegram.setWebhook(webhookUrl);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      await this.bot.telegram.deleteWebhook();
-
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      const webhookUrl = `${this.configService.get('NGROK_URL')}/telegram-webhook`;
-
-      await this.bot.telegram.setWebhook(webhookUrl);
-
       const webhookInfo = await this.bot.telegram.getWebhookInfo();
       console.log('this is webhook info', webhookInfo);
     } catch (err) {
@@ -69,15 +66,12 @@ export class TelegramService implements OnModuleInit {
 
   async sendQuickReplies(
     chatId: number,
-    payload: { text: string; options: any },
+    payload: { text: string; actions: any[] },
   ): Promise<void> {
-    const inlineKeyboard = payload.options.map((option) => [
+    const inlineKeyboard = payload.actions.map((action) => [
       {
-        text: option.title,
-        callback_data: option.payload,
-      },
-      {
-        timeout: 10000, // 10 seconds timeout (adjust as needed)
+        text: action.title,
+        callback_data: action.payload,
       },
     ]);
 
@@ -90,9 +84,6 @@ export class TelegramService implements OnModuleInit {
           inline_keyboard: inlineKeyboard,
         },
       },
-      {
-        timeout: 10000, // 10 seconds timeout (adjust as needed)
-      },
     );
   }
 
@@ -103,15 +94,12 @@ export class TelegramService implements OnModuleInit {
       options: { label: string; value: string }[];
     },
   ): Promise<void> {
-    // Create rows of two buttons each
-    const chunkSize = 2;
-    const keyboard: { text: string }[][] = [];
-
-    for (let i = 0; i < payload.options.length; i += chunkSize) {
-      const chunk = payload.options.slice(i, i + chunkSize);
-      const row = chunk.map((opt) => ({ text: opt.label }));
-      keyboard.push(row);
-    }
+    const inlineKeyboard = payload.options.map((opt) => [
+      {
+        text: opt.label,
+        callback_data: opt.value,
+      },
+    ]);
 
     await axios.post(
       `${process.env.TELEGRAM_URL}${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -119,9 +107,9 @@ export class TelegramService implements OnModuleInit {
         chat_id: chatId,
         text: payload.message,
         reply_markup: {
-          keyboard,
+          inline_keyboard: inlineKeyboard,
           resize_keyboard: true,
-          one_time_keyboard: false,
+          one_time_keyboard: true,
         },
       },
     );
