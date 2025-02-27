@@ -1,6 +1,31 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { TelegramService } from './telegram.service';
 import axios from 'axios';
+import axiosRetry from 'axios-retry';
+
+// Configure axios to automatically retry requests on HTTP 429 or transient network errors.
+axiosRetry(axios, {
+  retries: 10, // Maximum number of retries
+  retryCondition: (error) => {
+    // Retry for HTTP status 429 (rate limited) or for network errors.
+    return (
+      error.response?.status === 429 ||
+      axiosRetry.isNetworkOrIdempotentRequestError(error)
+    );
+  },
+  retryDelay: (retryCount, error) => {
+    // If the server sent a "Retry-After" header, use that value (converted to ms).
+    if (
+      error.response &&
+      error.response.headers &&
+      error.response.headers['retry-after']
+    ) {
+      return parseInt(error.response.headers['retry-after'], 10) * 1000;
+    }
+    // Otherwise, use an exponential delay.
+    return axiosRetry.exponentialDelay(retryCount);
+  },
+});
 
 @Controller('telegram-webhook')
 export class TelegramController {
@@ -8,6 +33,7 @@ export class TelegramController {
 
   @Post()
   async handleWebhook(@Body() update: any): Promise<void> {
+    console.log('immediate update', update);
     const chatId =
       update.message?.chat?.id || update.callback_query?.message?.chat?.id;
     if (!chatId) {
@@ -16,13 +42,20 @@ export class TelegramController {
     }
 
     const botpressPayload = this.buildBotpressPayload(update);
-    console.log('this is update logic from telegram', update);
+    console.log('this is update logic from telegram', update.message);
 
     await this.sendToBotpress(chatId, botpressPayload);
   }
 
   private buildBotpressPayload(update: any): any {
-    if (update.callback_query) {
+    if (update.message?.contact) {
+      return {
+        type: 'text',
+        text: update.message.contact.phone_number,
+        includedContexts: ['global'],
+        metadata: update.message.contact,
+      };
+    } else if (update.callback_query) {
       return {
         type: 'text',
         text: update.callback_query.data,
@@ -37,11 +70,13 @@ export class TelegramController {
         metadata: update,
       };
     } else {
+      // Optional: Add a safe fallback or logging
+      console.warn('Unexpected update structure', update);
       return {
         type: 'text',
-        text: update.callback_query.data,
+        text: 'Sorry, I did not understand that.',
         includedContexts: ['global'],
-        metadata: update.callback_query,
+        metadata: update,
       };
     }
   }
@@ -52,10 +87,19 @@ export class TelegramController {
       const response = await axios.post(
         `${process.env.BOTPRESS_URL}/api/v1/bots/wing-loan-flow-messenger/converse/${chatId}`,
         botpressPayload,
+        { timeout: 10000 },
       );
-      for (const msg of response.data.responses) {
-        console.log('this msg', msg);
-        await this.handleBotpressMessage(chatId, msg);
+      // Ensure that Botpress returns the expected responses array.
+      if (response.data && Array.isArray(response.data.responses)) {
+        for (const msg of response.data.responses) {
+          console.log('this msg', msg);
+          await this.handleBotpressMessage(chatId, msg);
+        }
+      } else {
+        console.error(
+          'Unexpected response structure from Botpress:',
+          response.data,
+        );
       }
     } catch (error) {
       console.error(

@@ -6,6 +6,7 @@ import {
 import { Telegraf } from 'telegraf';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import { request } from 'http';
 
 @Injectable()
 export class TelegramService implements OnApplicationBootstrap {
@@ -68,12 +69,21 @@ export class TelegramService implements OnApplicationBootstrap {
     chatId: number,
     payload: { text: string; actions: any[] },
   ): Promise<void> {
-    const inlineKeyboard = payload.actions.map((action) => [
-      {
-        text: action.title,
-        callback_data: action.payload,
-      },
-    ]);
+    const inlineKeyboard = payload.actions.map((action) =>
+      action.action === 'Open URL' && action.url
+        ? [
+            {
+              text: action.title,
+              url: action.url,
+            },
+          ]
+        : [
+            {
+              text: action.title,
+              callback_data: action.payload || action.text,
+            },
+          ],
+    );
 
     await axios.post(
       `${process.env.TELEGRAM_URL}${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -94,13 +104,17 @@ export class TelegramService implements OnApplicationBootstrap {
       options: { label: string; value: string }[];
     },
   ): Promise<void> {
-    // Create rows of two buttons each
-    const chunkSize = 2;
-    const keyboard: { text: string }[][] = [];
+    // For one button per row, set chunkSize to 1
+    const chunkSize = 1;
+    const keyboard: { text: string; request_contact?: boolean }[][] = [];
 
     for (let i = 0; i < payload.options.length; i += chunkSize) {
       const chunk = payload.options.slice(i, i + chunkSize);
-      const row = chunk.map((opt) => ({ text: opt.label }));
+      const row = chunk.map((opt) =>
+        opt.value === 'request_contact'
+          ? { text: opt.label, request_contact: true }
+          : { text: opt.label },
+      );
       keyboard.push(row);
     }
 
@@ -110,9 +124,10 @@ export class TelegramService implements OnApplicationBootstrap {
         chat_id: chatId,
         text: payload.message,
         reply_markup: {
+          remove_keyboard: true,
+          one_time_keyboard: true,
           keyboard,
           resize_keyboard: true,
-          one_time_keyboard: true,
         },
       },
     );
