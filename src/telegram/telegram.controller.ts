@@ -10,7 +10,8 @@ axiosRetry(axios, {
     // Retry for HTTP status 429 (rate limited) or for network errors.
     return (
       error.response?.status === 429 ||
-      axiosRetry.isNetworkOrIdempotentRequestError(error)
+      axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+      error.code === 'ECONNABORTED' // This will catch timeout errors
     );
   },
   retryDelay: (retryCount, error) => {
@@ -83,13 +84,20 @@ export class TelegramController {
 
   async sendToBotpress(chatId: number, botpressPayload: any): Promise<void> {
     console.log('this is botpressPayload', botpressPayload);
+
+    await this.telegramService.sendChatAction(chatId, 'typing');
+    let typingInterval = setInterval(async () => {
+      await this.telegramService.sendChatAction(chatId, 'typing');
+    }, 3000);
     try {
       const response = await axios.post(
         `${process.env.BOTPRESS_URL}/api/v1/bots/wing-loan-flow-messenger/converse/${chatId}`,
         botpressPayload,
-        { timeout: 10000 },
+        { timeout: 4000 },
       );
-      // Ensure that Botpress returns the expected responses array.
+
+      clearInterval(typingInterval);
+
       if (response.data && Array.isArray(response.data.responses)) {
         for (const msg of response.data.responses) {
           console.log('this msg', msg);
@@ -102,10 +110,24 @@ export class TelegramController {
         );
       }
     } catch (error) {
-      console.error(
-        'Error communicating with Botpress:',
-        error.response?.data || error.message,
-      );
+      // Stop typing indicator when there's an error
+      clearInterval(typingInterval);
+      if (error.code === 'ECONNABORTED') {
+        console.error(
+          `Botpress request timed out after ${error.config?.timeout || 'unknown'}ms`,
+        );
+
+        // Send a temporary failure message to the user
+        await this.telegramService.sendMessage(
+          chatId,
+          "I'm having trouble processing your request right now. Please try again in a moment.",
+        );
+      } else {
+        console.error(
+          'Error communicating with Botpress:',
+          error.response?.data || error.message,
+        );
+      }
     }
   }
 

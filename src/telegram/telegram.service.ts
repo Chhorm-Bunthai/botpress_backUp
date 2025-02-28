@@ -124,12 +124,15 @@ export class TelegramService implements OnApplicationBootstrap {
         chat_id: chatId,
         text: payload.message,
         reply_markup: {
-          remove_keyboard: true,
-          one_time_keyboard: true,
-          keyboard,
+          keyboard: keyboard,
           resize_keyboard: true,
+          one_time_keyboard: true,
         },
       },
     );
+  }
+
+  async sendChatAction(chatId: number, action: string): Promise<void> {
+    await this.bot.telegram.sendChatAction(chatId, 'typing');
   }
 }
