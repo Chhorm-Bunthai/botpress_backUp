@@ -9,6 +9,7 @@ import { WhitelistModule } from './whitelist/whitelist.module';
 import { DatabaseService } from './database/database.service';
 import { DatabaseController } from './database/database.controller';
 import { DatabaseModule } from './database/database.module';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { DatabaseModule } from './database/database.module';
     TelegramModule,
     WhitelistModule,
     DatabaseModule,
+    UserModule,
   ],
   controllers: [TelegramController, WhitelistController, DatabaseController],
   providers: [AppService, WhitelistService, DatabaseService],

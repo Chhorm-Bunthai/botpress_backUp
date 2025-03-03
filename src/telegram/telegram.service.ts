@@ -135,4 +135,25 @@ export class TelegramService implements OnApplicationBootstrap {
   async sendChatAction(chatId: number, action: string): Promise<void> {
     await this.bot.telegram.sendChatAction(chatId, 'typing');
   }
+
+  async getUserInfo(userId: number, botToken?: string): Promise<any> {
+    try {
+      // Use provided token or fall back to default
+      const token = botToken || process.env.WALLET_TELEGRAM_BOT_TOKEN;
+
+      // Make request to Telegram API
+      const response = await axios.post(
+        `https://api.telegram.org/bot${token}/getChat`,
+        { chat_id: userId },
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error(
+        'Error fetching user info:',
+        error.response?.data || error.message,
+      );
+      throw error;
+    }
+  }
 }
