@@ -89,4 +89,36 @@ export class UserService implements OnApplicationBootstrap {
       throw error;
     }
   }
+
+  async sendCardWithUrlButton(
+    chatId: number,
+    payload: {
+      text: string;
+      buttonText: string;
+      buttonUrl: string;
+      imageUrl: string;
+    },
+  ): Promise<void> {
+    const inlineKeyboard = [
+      [
+        {
+          text: payload.buttonText,
+          url: payload.buttonUrl,
+          arrow: true,
+        },
+      ],
+    ];
+
+    await axios.post(
+      `${this.configService.get('TELEGRAM_URL')}${this.configService.get('WALLET_TELEGRAM_BOT_TOKEN')}/sendPhoto`,
+      {
+        chat_id: chatId,
+        photo: payload.imageUrl,
+        caption: payload.text,
+        reply_markup: {
+          inline_keyboard: inlineKeyboard,
+        },
+      },
+    );
+  }
 }
