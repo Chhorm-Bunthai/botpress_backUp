@@ -11,7 +11,8 @@ export class UserController {
   @Post('telegram-webhook/user')
   async handleUserBotWebhook(@Body() update: any) {
     console.log('this is update from wallet', update);
-    if (update.message.text === '/start') {
+    // Add this check to prevent the error
+    if (update.message && update.message.text === '/start') {
       this.userService.sendCardWithUrlButton(update.message.chat.id, {
         text: 'Your Wallet is set and ready.\nYou can start using crypto in Telegram',
         buttonUrl: 'https://t.me/wing_wallet_dev_bot/WalletApp',
