@@ -16,6 +16,59 @@ export class WhitelistService {
   private readonly logger = new Logger(WhitelistService.name);
   constructor(@Inject('POSTGRES_POOL') private readonly sql: any) {}
 
+  async getUser(chatId: any): Promise<any> {
+    console.log('ChatID', JSON.stringify(chatId, null, 2));
+    try {
+      if (!chatId || !chatId.chatId) {
+        throw new Error('Invalid chatId provided');
+      }
+
+      const chatIdValue = parseInt(chatId.chatId);
+      if (isNaN(chatIdValue)) {
+        throw new Error(`Could not parse chatId: ${chatId.chatId}`);
+      }
+
+      const result = await this
+        .sql`select * from "user" where chat_id = ${chatIdValue}`;
+      this.logger.log(`Retrieved user with chat_id: ${chatId.chatId}`);
+      console.log('result', result);
+      return result[0];
+    } catch (error) {
+      this.logger.error('Error retrieving user from Neon database', error);
+      throw error;
+    }
+  }
+  async findByPhoneNumber(phoneNumber: string): Promise<any> {
+    console.log('phoneNumber', phoneNumber);
+    try {
+      const result = await this
+        .sql`select * from whitelist where phone_number = ${phoneNumber}`;
+      this.logger.log(
+        `Retrieved whitelist record with phone number: ${phoneNumber}`,
+      );
+      console.log('result', result[0]);
+      return result.length > 0 ? result[0] : null;
+    } catch (error) {
+      this.logger.error(
+        'Error retrieving whitelist record from Neon database',
+        error,
+      );
+      throw error;
+    }
+  }
+
+  async createUser(user: any): Promise<any> {
+    try {
+      const result = await this
+        .sql`insert into "user" (chat_id, phone_number) values (${user.chatId}, ${user.phoneNumber}) returning *`;
+      this.logger.log(`User created successfully with chat_id: ${user.chatId}`);
+      return result;
+    } catch (error) {
+      this.logger.error('Error creating user in Neon database', error);
+      throw error;
+    }
+  }
+
   async getWhitelist(): Promise<any> {
     try {
       const result = await this.sql('SELECT * FROM whitelist');

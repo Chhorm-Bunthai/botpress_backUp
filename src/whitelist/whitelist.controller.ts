@@ -3,13 +3,21 @@ import {
   Controller,
   Get,
   HttpException,
+  Param,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as XLSX from 'xlsx';
 import { WhitelistService } from './whitelist.service';
+import { max } from 'rxjs';
+
+function normalizedPhoneNumber(phoneNumber: string) {
+  console.log('this is phoneNumber', phoneNumber);
+  return phoneNumber.trim().replace(/^(?:\+855|00855|885)/, '0');
+}
 
 @Controller('whitelist')
 export class WhitelistController {
@@ -49,5 +57,32 @@ export class WhitelistController {
     await this.whitelistService.saveRecords(whitelistData);
 
     return { message: 'Whitelist data uploaded successfully' };
+  }
+
+  @Get('user')
+  async getUser(@Query() chatId: number) {
+    const response = await this.whitelistService.getUser(chatId);
+    if (response.length === 0) {
+      throw new HttpException('User not found', 404);
+    }
+    console.log('this is response', response);
+    if (response.phone_number) {
+      const normalizedPhone = normalizedPhoneNumber(response.phone_number);
+      console.log('normalizedPhone', normalizedPhone);
+      const whitelistEntry =
+        await this.whitelistService.findByPhoneNumber(normalizedPhone);
+      console.log('this is whitelistEntry', whitelistEntry);
+      return {
+        ...response,
+        maxLimit: whitelistEntry?.max_limit,
+        isWhitelist: !!whitelistEntry,
+      };
+    }
+    return response;
+  }
+
+  @Post('user')
+  async createUser(@Body() user: any) {
+    return this.whitelistService.createUser(user);
   }
 }

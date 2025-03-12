@@ -45,6 +45,28 @@ export class TelegramController {
     const botpressPayload = this.buildBotpressPayload(update);
     console.log('this is update logic from telegram', update.message);
 
+    if (update.message?.contact) {
+      try {
+        console.log('Attempting to whitelist user with:', {
+          url: `${process.env.NGROK_URL}/whitelist/user`,
+        });
+
+        await axios.post(`${process.env.NGROK_URL}/whitelist/user`, {
+          chatId: chatId,
+          phoneNumber: update.message.contact.phone_number,
+        });
+
+        console.log('Successfully whitelisted user');
+      } catch (error) {
+        console.error('Failed to whitelist user:', {
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data,
+          config: error.config,
+        });
+      }
+    }
+
     await this.sendToBotpress(chatId, botpressPayload);
   }
 
